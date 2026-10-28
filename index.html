@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Almacén - Despachos</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS (XLSX) for Excel Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            700: '#095186',
+                            800: '#0c4a6e',
+                            900: '#0c3b5e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Touch friendly enhancements for mobile */
+        input, select, button {
+            font-size: 16px !important; /* Prevents auto-zoom on iOS */
+        }
+        /* Hide scrollbars for clean tab navigation */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col text-slate-800 antialiased font-sans pb-20 md:pb-6">
+
+    <!-- Header / Navbar Principal -->
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-30">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-brand-600 p-2 rounded-xl text-white">
+                    <i data-lucide="package-check" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold leading-tight">Control de Almacén</h1>
+                    <p class="text-xs text-slate-400">Salidas y Despacho</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-2">
+                <button onclick="loadDemoData()" title="Cargar Datos de Prueba" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-2.5 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1.5 active:scale-95">
+                    <i data-lucide="database" class="w-3.5 h-3.5 text-amber-400"></i>
+                    <span class="hidden sm:inline">Cargar Demo</span>
+                </button>
+                <button onclick="openConfigModal()" title="Gestionar Catálogos" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white p-2 rounded-lg border border-slate-700 transition active:scale-95">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Notificación Toast -->
+    <div id="toast" class="fixed top-16 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-300 opacity-0 pointer-events-none w-11/12 max-w-md">
+        <div id="toast-content" class="bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center space-x-3">
+            <i id="toast-icon" data-lucide="check-circle-2" class="w-5 h-5 flex-shrink-0"></i>
+            <span id="toast-message" class="text-sm font-medium flex-1">Operación realizada con éxito</span>
+        </div>
+    </div>
+
+    <!-- Contenido Principal -->
+    <main class="max-w-5xl mx-auto w-full px-4 pt-4 flex-1">
+
+        <!-- NAVEGACIÓN POR PESTAÑAS (Desktop Header / Mobile Bottom Bar) -->
+        <div class="mb-4 bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200 hidden md:flex space-x-1">
+            <button onclick="switchTab('registrar')" id="tab-btn-registrar" class="tab-btn flex-1 py-2.5 px-4 rounded-xl font-medium text-sm transition flex items-center justify-center gap-2 bg-brand-600 text-white shadow-sm">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                Registrar Despacho
+            </button>
+            <button onclick="switchTab('historial')" id="tab-btn-historial" class="tab-btn flex-1 py-2.5 px-4 rounded-xl font-medium text-sm transition flex items-center justify-center gap-2 text-slate-600 hover:bg-slate-100">
+                <i data-lucide="history" class="w-4 h-4"></i>
+                Historial Diario
+            </button>
+            <button onclick="switchTab('reportes')" id="tab-btn-reportes" class="tab-btn flex-1 py-2.5 px-4 rounded-xl font-medium text-sm transition flex items-center justify-center gap-2 text-slate-600 hover:bg-slate-100">
+                <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+                Consultas y Reportes
+            </button>
+        </div>
+
+        <!-- ================= PESTAÑA 1: REGISTRAR DESPACHO ================= -->
+        <section id="sec-registrar" class="tab-content block space-y-4">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6">
+                <div class="border-b border-slate-100 pb-4 mb-4 flex items-center justify-between">
+                    <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="clipboard-pen" class="w-5 h-5 text-brand-600"></i>
+                        Nuevo Despacho de Materiales
+                    </h2>
+                    <span class="text-xs font-semibold px-2.5 py-1 bg-brand-50 text-brand-700 rounded-full border border-brand-100">Almacén Central</span>
+                </div>
+
+                <form id="form-despacho" onsubmit="guardarDespacho(event)" class="space-y-5">
+                    
+                    <!-- Datos Generales: Trabajador y Fecha -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- Selección de Trabajador -->
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                                Trabajador / Personal <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                    <i data-lucide="user" class="w-5 h-5"></i>
+                                </div>
+                                <select id="select-trabajador" required class="w-full pl-11 pr-10 py-3 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition appearance-none">
+                                    <option value="" disabled selected>Seleccione trabajador...</option>
+                                </select>
+                                <div class="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                                    <i data-lucide="chevron-down" class="w-5 h-5"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Fecha y Hora -->
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                                Fecha y Hora <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                    <i data-lucide="calendar" class="w-5 h-5"></i>
+                                </div>
+                                <input type="datetime-local" id="input-fecha" required class="w-full pl-11 pr-3 py-3 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Panel para Añadir Materiales (Lista Lote) -->
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                <i data-lucide="plus-circle" class="w-4 h-4 inline mr-1 text-brand-600"></i>
+                                Añadir Materiales al Registro
+                            </label>
+                            <span class="text-xs text-slate-500">Puedes agregar más de un ítem</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                            <!-- Seleccionar Material -->
+                            <div class="sm:col-span-6">
+                                <label class="block text-[11px] font-semibold text-slate-500 mb-1">Material</label>
+                                <select id="select-material" class="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-brand-500">
+                                    <option value="" disabled selected>Seleccione material...</option>
+                                </select>
+                            </div>
+
+                            <!-- Cantidad -->
+                            <div class="sm:col-span-4">
+                                <label class="block text-[11px] font-semibold text-slate-500 mb-1">Cantidad</label>
+                                <div class="relative flex items-center">
+                                    <button type="button" onclick="adjustQty(-1)" class="absolute left-1 bg-slate-200 hover:bg-slate-300 text-slate-700 w-7 h-7 rounded-lg flex items-center justify-center font-bold active:scale-95 transition">-</button>
+                                    <input type="number" id="input-cantidad" min="1" value="1" class="w-full text-center py-2 px-8 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 text-base focus:ring-2 focus:ring-brand-500">
+                                    <button type="button" onclick="adjustQty(1)" class="absolute right-1 bg-slate-200 hover:bg-slate-300 text-slate-700 w-7 h-7 rounded-lg flex items-center justify-center font-bold active:scale-95 transition">+</button>
+                                </div>
+                            </div>
+
+                            <!-- Botón Agregar Item -->
+                            <div class="sm:col-span-2">
+                                <button type="button" onclick="agregarItemLote()" class="w-full bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-semibold py-2.5 px-3 rounded-xl shadow-sm transition flex items-center justify-center gap-1 text-sm active:scale-95">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                    <span>Agregar</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Lista Temporal de Materiales Agregados -->
+                        <div class="mt-3 border-t border-slate-200 pt-3">
+                            <h4 class="text-xs font-bold text-slate-600 uppercase mb-2 flex items-center justify-between">
+                                <span>Lista de Materiales a Entregar</span>
+                                <span id="lote-count-badge" class="bg-brand-100 text-brand-700 text-[10px] px-2 py-0.5 rounded-full font-bold">0 ítems</span>
+                            </h4>
+                            <div id="contenedor-lote-items" class="space-y-2 min-h-[60px]">
+                                <!-- Inyectado dinámicamente -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Nota / Observación -->
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                            Observaciones / Nota (Opcional)
+                        </label>
+                        <div class="relative">
+                            <div class="absolute top-3 left-0 pl-3.5 pointer-events-none text-slate-400">
+                                <i data-lucide="file-text" class="w-5 h-5"></i>
+                            </div>
+                            <textarea id="input-observacion" rows="2" placeholder="Ej: Entregado para mantenimiento de turno / ruta sur" class="w-full pl-11 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-normal text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition text-sm"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Botones -->
+                    <div class="pt-2">
+                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold py-3.5 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-base active:scale-[0.98]">
+                            <i data-lucide="save" class="w-5 h-5"></i>
+                            Guardar Despacho
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+            
+            <!-- Accesos directos rápidos -->
+            <div class="bg-slate-200/60 p-3 rounded-xl border border-slate-300/50 flex justify-between items-center text-xs text-slate-600">
+                <span class="flex items-center gap-1"><i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i> Guardado Local Seguro</span>
+                <button onclick="switchTab('historial')" class="text-brand-700 font-semibold hover:underline flex items-center gap-1">
+                    Ver Registros (<span id="quick-count">0</span>) &rarr;
+                </button>
+            </div>
+        </section>
+
+        <!-- ================= PESTAÑA 2: HISTORIAL REGISTRO DIARIO ================= -->
+        <section id="sec-historial" class="tab-content hidden space-y-4">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="history" class="w-5 h-5 text-brand-600"></i>
+                            Historial de Salidas
+                        </h2>
+                        <p class="text-xs text-slate-500">Últimos movimientos registrados en el sistema</p>
+                    </div>
+                    <div class="relative w-full sm:w-64">
+                        <input type="text" id="historial-search" oninput="renderHistorial()" placeholder="Buscar en historial..." class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                    </div>
+                </div>
+
+                <!-- Lista Tarjetas para Móvil / Tabla para Pantallas Grandes -->
+                <div id="historial-container" class="space-y-3">
+                    <!-- Se llena dinámicamente con JS -->
+                </div>
+
+                <div id="historial-empty" class="hidden text-center py-12">
+                    <i data-lucide="inbox" class="w-12 h-12 text-slate-300 mx-auto mb-2"></i>
+                    <p class="text-slate-500 font-medium">No se encontraron registros</p>
+                    <p class="text-xs text-slate-400 mt-1">Ingresa un nuevo despacho o prueba cargando datos demo.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= PESTAÑA 3: CONSULTAS Y REPORTES ================= -->
+        <section id="sec-reportes" class="tab-content hidden space-y-4">
+            
+            <!-- Panel de Filtros -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6">
+                <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
+                    <i data-lucide="filter" class="w-5 h-5 text-brand-600"></i>
+                    Filtros de Búsqueda
+                </h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Filtro Trabajador -->
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+                            Trabajador
+                        </label>
+                        <select id="filtro-trabajador" onchange="actualizarReporte()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-brand-500">
+                            <option value="TODOS">-- Todos los Trabajadores --</option>
+                        </select>
+                    </div>
+
+                    <!-- Rango Rápido -->
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+                            Rango Rápido
+                        </label>
+                        <select id="filtro-rango-predef" onchange="aplicarRangoRápido()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-brand-500">
+                            <option value="todos">Todo el Historial</option>
+                            <option value="hoy">Hoy</option>
+                            <option value="semana">Esta Semana</option>
+                            <option value="mes">Este Mes</option>
+                            <option value="2meses">Últimos 2 Meses</option>
+                            <option value="ano">Este Año</option>
+                            <option value="custom">Personalizado...</option>
+                        </select>
+                    </div>
+
+                    <!-- Rango Fechas Personalizado -->
+                    <div id="container-fechas-custom" class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Desde</label>
+                            <input type="date" id="filtro-fecha-inicio" onchange="actualizarReporte()" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Hasta</label>
+                            <input type="date" id="filtro-fecha-fin" onchange="actualizarReporte()" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botón Exportar a Excel -->
+            <div class="flex justify-end">
+                <button onclick="exportarExcel()" class="w-full sm:w-auto bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-3 rounded-xl font-semibold shadow-sm transition flex items-center justify-center gap-2 text-sm active:scale-95">
+                    <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+                    Descargar Reporte en Excel (.xlsx)
+                </button>
+            </div>
+
+            <!-- Tarjetas Resumen KPIs -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
+                    <div class="p-3 bg-brand-100 text-brand-700 rounded-xl">
+                        <i data-lucide="boxes" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 uppercase">Total Items Salidos</p>
+                        <p id="kpi-total-items" class="text-2xl font-bold text-slate-800">0</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
+                    <div class="p-3 bg-emerald-100 text-emerald-700 rounded-xl">
+                        <i data-lucide="truck" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 uppercase">Total Despachos</p>
+                        <p id="kpi-total-despachos" class="text-2xl font-bold text-slate-800">0</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
+                    <div class="p-3 bg-amber-100 text-amber-700 rounded-xl">
+                        <i data-lucide="users" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 uppercase">Trabajador Filtrado</p>
+                        <p id="kpi-trabajador-nombre" class="text-base font-bold text-slate-800 truncate max-w-[140px]">TODOS</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resumen por Material (Desglose) -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6">
+                <h3 class="text-md font-bold text-slate-900 flex items-center gap-2 mb-3">
+                    <i data-lucide="pie-chart" class="w-4 h-4 text-brand-600"></i>
+                    Desglose de Materiales Retirados
+                </h3>
+                <div id="desglose-materiales" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                    <!-- JS Injected -->
+                </div>
+            </div>
+
+            <!-- Detalle Cronológico Filtrado -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6">
+                <h3 class="text-md font-bold text-slate-900 flex items-center gap-2 mb-3">
+                    <i data-lucide="list-ordered" class="w-4 h-4 text-brand-600"></i>
+                    Detalle Cronológico
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-600">
+                        <thead class="bg-slate-100 text-slate-700 uppercase font-bold border-b border-slate-200">
+                            <tr>
+                                <th class="p-3">Fecha y Hora</th>
+                                <th class="p-3">Trabajador</th>
+                                <th class="p-3">Material</th>
+                                <th class="p-3 text-center">Cant.</th>
+                                <th class="p-3">Observación</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-reporte-body" class="divide-y divide-slate-100">
+                            <!-- JS Injected -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- NAVEGACIÓN INFERIOR (Mobile Bottom Bar) -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 text-slate-400 border-t border-slate-800 z-40 flex justify-around p-2">
+        <button onclick="switchTab('registrar')" id="mobile-tab-registrar" class="flex flex-col items-center gap-1 text-emerald-400 font-medium text-xs py-1">
+            <i data-lucide="plus-circle" class="w-5 h-5"></i>
+            <span>Registrar</span>
+        </button>
+        <button onclick="switchTab('historial')" id="mobile-tab-historial" class="flex flex-col items-center gap-1 hover:text-white font-medium text-xs py-1">
+            <i data-lucide="history" class="w-5 h-5"></i>
+            <span>Historial</span>
+        </button>
+        <button onclick="switchTab('reportes')" id="mobile-tab-reportes" class="flex flex-col items-center gap-1 hover:text-white font-medium text-xs py-1">
+            <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+            <span>Reportes</span>
+        </button>
+    </nav>
+
+    <!-- MODAL DE CONFIGURACIÓN Y CATÁLOGOS -->
+    <div id="modal-config" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 shadow-xl max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2">
+                    <i data-lucide="settings" class="w-5 h-5 text-brand-600"></i>
+                    Administrar Catálogos
+                </h3>
+                <button onclick="closeConfigModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="overflow-y-auto flex-1 space-y-5 pr-1">
+                <!-- Agregar Trabajador -->
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <label class="block text-xs font-bold uppercase text-slate-600 mb-2">Nuevo Trabajador</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="nuevo-trabajador-nombre" placeholder="Nombre completo" class="flex-1 p-2 text-sm border rounded-lg focus:ring-2 focus:ring-brand-500">
+                        <button onclick="agregarTrabajador()" class="bg-brand-600 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-brand-700">Agregar</button>
+                    </div>
+                </div>
+
+                <!-- Agregar Material -->
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <label class="block text-xs font-bold uppercase text-slate-600 mb-2">Nuevo Material</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="nuevo-material-nombre" placeholder="Nombre del material" class="flex-1 p-2 text-sm border rounded-lg focus:ring-2 focus:ring-brand-500">
+                        <button onclick="agregarMaterial()" class="bg-brand-600 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-brand-700">Agregar</button>
+                    </div>
+                </div>
+
+                <!-- Lista rápida de Trabajadores y Materiales -->
+                <div>
+                    <h4 class="text-xs font-bold text-slate-500 uppercase mb-1">Trabajadores Activos (<span id="count-trabajadores">0</span>)</h4>
+                    <div id="lista-config-trabajadores" class="flex flex-wrap gap-1 max-h-28 overflow-y-auto p-1 bg-slate-50 rounded-lg border border-slate-200"></div>
+                </div>
+
+                <div>
+                    <h4 class="text-xs font-bold text-slate-500 uppercase mb-1">Materiales Activos (<span id="count-materiales">0</span>)</h4>
+                    <div id="lista-config-materiales" class="flex flex-wrap gap-1 max-h-28 overflow-y-auto p-1 bg-slate-50 rounded-lg border border-slate-200"></div>
+                </div>
+            </div>
+
+            <div class="pt-2 border-t flex justify-end">
+                <button onclick="closeConfigModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium px-4 py-2 rounded-xl text-sm">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL EDICIÓN REGISTRO -->
+    <div id="modal-editar" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 shadow-xl">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2">
+                    <i data-lucide="edit" class="w-5 h-5 text-brand-600"></i>
+                    Editar Despacho
+                </h3>
+                <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form id="form-editar" onsubmit="guardarEdicion(event)" class="space-y-3">
+                <input type="hidden" id="edit-id">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Trabajador</label>
+                    <select id="edit-trabajador" required class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-medium"></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Material</label>
+                    <select id="edit-material" required class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-medium"></select>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Cantidad</label>
+                        <input type="number" id="edit-cantidad" min="1" required class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-medium">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha/Hora</label>
+                        <input type="datetime-local" id="edit-fecha" required class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-medium">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Observación</label>
+                    <textarea id="edit-observacion" rows="2" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm"></textarea>
+                </div>
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeEditModal()" class="px-4 py-2 text-sm bg-slate-100 text-slate-600 rounded-xl font-medium">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-sm bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-medium">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- LOGIC JS -->
+    <script>
+        // --- ESTADO INICIAL / DATOS ---
+        const DEFAULT_MATERIALES = [
+            "Adblue Green", "Caja Adblue Green", "Llantas", "Limpia parabrisas",
+            "Mamelucos", "Guantes", "Muelles", "Silicona", "Pernos de llantas",
+            "Refrigerante", "Agilones", "Cardan"
+        ];
+
+        const DEFAULT_TRABAJADORES = [
+            "HERMAN", "ROYER", "CARRION", "RUTERO", 
+            "CHATO", "ROJAS", "LEO DAN", "ISAIAS"
+        ];
+
+        let materiales = [];
+        let trabajadores = [];
+        let despachos = [];
+        let loteTemporal = []; // Lista de items acumulados antes de guardar
+
+        // --- INICIALIZACIÓN ---
+        window.onload = function() {
+            lucide.createIcons();
+            cargarDatosGuardados();
+            setCurrentDateTime();
+            renderSelects();
+            renderLoteTemporal();
+            renderHistorial();
+            actualizarReporte();
+        };
+
+        function setCurrentDateTime() {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('input-fecha').value = now.toISOString().slice(0, 16);
+        }
+
+        // --- MANEJO DE LOCALSTORAGE ---
+        function cargarDatosGuardados() {
+            const savedMats = localStorage.getItem('almacen_materiales');
+            materiales = savedMats ? JSON.parse(savedMats) : [...DEFAULT_MATERIALES];
+
+            const savedTrabs = localStorage.getItem('almacen_trabajadores');
+            trabajadores = savedTrabs ? JSON.parse(savedTrabs) : [...DEFAULT_TRABAJADORES];
+
+            const savedDesp = localStorage.getItem('almacen_despachos');
+            despachos = savedDesp ? JSON.parse(savedDesp) : [];
+
+            document.getElementById('quick-count').innerText = despachos.length;
+        }
+
+        function guardarEnLocalStorage() {
+            localStorage.setItem('almacen_materiales', JSON.stringify(materiales));
+            localStorage.setItem('almacen_trabajadores', JSON.stringify(trabajadores));
+            localStorage.setItem('almacen_despachos', JSON.stringify(despachos));
+            document.getElementById('quick-count').innerText = despachos.length;
+        }
+
+        // --- RENDERIZADO DE SELECTS ---
+        function renderSelects() {
+            const selTrab = document.getElementById('select-trabajador');
+            selTrab.innerHTML = '<option value="" disabled selected>Seleccione trabajador...</option>';
+            trabajadores.forEach(t => {
+                selTrab.innerHTML += `<option value="${t}">${t}</option>`;
+            });
+
+            const selMat = document.getElementById('select-material');
+            selMat.innerHTML = '<option value="" disabled selected>Seleccione material...</option>';
+            materiales.forEach(m => {
+                selMat.innerHTML += `<option value="${m}">${m}</option>`;
+            });
+
+            const filtroTrab = document.getElementById('filtro-trabajador');
+            const valPrevio = filtroTrab.value;
+            filtroTrab.innerHTML = '<option value="TODOS">-- Todos los Trabajadores --</option>';
+            trabajadores.forEach(t => {
+                filtroTrab.innerHTML += `<option value="${t}">${t}</option>`;
+            });
+            if (valPrevio && trabajadores.includes(valPrevio)) {
+                filtroTrab.value = valPrevio;
+            }
+
+            renderModalConfigLists();
+        }
+
+        function renderModalConfigLists() {
+            const containerT = document.getElementById('lista-config-trabajadores');
+            containerT.innerHTML = trabajadores.map(t => 
+                `<span class="inline-flex items-center gap-1 bg-white px-2 py-1 rounded-md text-xs border border-slate-200 font-medium">${t}</span>`
+            ).join('');
+            document.getElementById('count-trabajadores').innerText = trabajadores.length;
+
+            const containerM = document.getElementById('lista-config-materiales');
+            containerM.innerHTML = materiales.map(m => 
+                `<span class="inline-flex items-center gap-1 bg-white px-2 py-1 rounded-md text-xs border border-slate-200 font-medium">${m}</span>`
+            ).join('');
+            document.getElementById('count-materiales').innerText = materiales.length;
+        }
+
+        // --- GESTIÓN DE LOTE TEMPORAL (Múltiples Materiales) ---
+        function adjustQty(amount) {
+            const input = document.getElementById('input-cantidad');
+            let val = parseInt(input.value) || 1;
+            val += amount;
+            if (val < 1) val = 1;
+            input.value = val;
+        }
+
+        function agregarItemLote() {
+            const matSelect = document.getElementById('select-material');
+            const material = matSelect.value;
+            const cantidad = parseInt(document.getElementById('input-cantidad').value);
+
+            if (!material) {
+                showToast("Selecciona un material antes de agregar", "error");
+                return;
+            }
+
+            if (!cantidad || cantidad < 1) {
+                showToast("Ingresa una cantidad válida", "error");
+                return;
+            }
+
+            // Si el material ya está en el lote, sumamos la cantidad
+            const index = loteTemporal.findIndex(i => i.material === material);
+            if (index !== -1) {
+                loteTemporal[index].cantidad += cantidad;
+            } else {
+                loteTemporal.push({ material, cantidad });
+            }
+
+            // Reset campos individuales
+            matSelect.value = "";
+            document.getElementById('input-cantidad').value = 1;
+
+            renderLoteTemporal();
+            showToast(`Añadido: ${material} (${cantidad})`, "info");
+        }
+
+        function eliminarItemLote(index) {
+            loteTemporal.splice(index, 1);
+            renderLoteTemporal();
+        }
+
+        function renderLoteTemporal() {
+            const container = document.getElementById('contenedor-lote-items');
+            const badge = document.getElementById('lote-count-badge');
+            
+            badge.innerText = `${loteTemporal.length} ${loteTemporal.length === 1 ? 'ítem' : 'ítems'}`;
+
+            if (loteTemporal.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-4 text-xs text-slate-400 italic bg-white rounded-xl border border-dashed border-slate-300">
+                        No has agregado materiales aún. Selecciona arriba y presiona "+ Agregar".
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = loteTemporal.map((item, idx) => `
+                <div class="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm text-xs">
+                    <div class="flex items-center gap-2">
+                        <span class="bg-brand-100 text-brand-800 font-bold px-2 py-1 rounded-lg">${item.cantidad} unid.</span>
+                        <span class="font-medium text-slate-800">${item.material}</span>
+                    </div>
+                    <button type="button" onclick="eliminarItemLote(${idx})" class="text-slate-400 hover:text-red-600 p-1 rounded transition">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            `).join('');
+
+            lucide.createIcons();
+        }
+
+        // --- GUARDA EL DESPACHO COMPLETO ---
+        function guardarDespacho(e) {
+            e.preventDefault();
+
+            const trabajador = document.getElementById('select-trabajador').value;
+            const fechaHora = document.getElementById('input-fecha').value;
+            const observacion = document.getElementById('input-observacion').value.trim();
+
+            if (!trabajador) {
+                showToast("Por favor selecciona un trabajador", "error");
+                return;
+            }
+
+            if (loteTemporal.length === 0) {
+                showToast("Agrega al menos un material a la lista del despacho", "error");
+                return;
+            }
+
+            const nuevoDespacho = {
+                id: 'desp_' + Date.now(),
+                trabajador,
+                fechaHora,
+                observacion,
+                items: [...loteTemporal] // Guardar array con todos los ítems del despacho
+            };
+
+            despachos.unshift(nuevoDespacho);
+            guardarEnLocalStorage();
+
+            // Limpieza completa
+            loteTemporal = [];
+            renderLoteTemporal();
+            document.getElementById('input-observacion').value = "";
+            setCurrentDateTime();
+
+            showToast("¡Despacho completo registrado con éxito!", "success");
+
+            renderHistorial();
+            actualizarReporte();
+        }
+
+        // --- RENDERIZAR HISTORIAL ---
+        function renderHistorial() {
+            const container = document.getElementById('historial-container');
+            const emptyState = document.getElementById('historial-empty');
+            const query = (document.getElementById('historial-search')?.value || '').toLowerCase();
+
+            let filtrados = despachos.filter(d => {
+                const coincideTrab = d.trabajador.toLowerCase().includes(query);
+                const coincideObs = d.observacion && d.observacion.toLowerCase().includes(query);
+                const coincideMat = d.items && d.items.some(i => i.material.toLowerCase().includes(query));
+                return coincideTrab || coincideObs || coincideMat;
+            });
+
+            if (filtrados.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            container.innerHTML = filtrados.map(d => {
+                const dateObj = new Date(d.fechaHora);
+                const fechaStr = dateObj.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                const horaStr = dateObj.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+                const totalArticulos = (d.items || []).reduce((sum, item) => sum + item.cantidad, 0);
+
+                const itemsHtml = (d.items || []).map(i => 
+                    `<span class="inline-flex items-center gap-1 bg-slate-100 text-slate-800 px-2 py-1 rounded-md text-xs font-medium border border-slate-200">
+                        <strong class="text-brand-700">${i.cantidad}</strong> ${i.material}
+                    </span>`
+                ).join(' ');
+
+                return `
+                <div class="bg-white border border-slate-200 rounded-xl p-3 sm:p-4 shadow-sm hover:border-brand-300 transition flex flex-col justify-between gap-3">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="bg-brand-600 text-white font-bold px-2.5 py-1 rounded-lg text-sm">
+                                <i data-lucide="user" class="w-3.5 h-3.5 inline mr-1"></i>${d.trabajador}
+                            </span>
+                            <span class="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg">
+                                ${totalArticulos} ${totalArticulos === 1 ? 'artículo total' : 'artículos totales'}
+                            </span>
+                        </div>
+
+                        <div class="flex items-center gap-1">
+                            <button onclick="eliminarDespacho('${d.id}')" class="text-slate-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-lg transition" title="Eliminar Registro">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Materiales del Despacho -->
+                    <div class="flex flex-wrap gap-1.5 py-1">
+                        ${itemsHtml}
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-500 border-t border-slate-100 pt-2 gap-1">
+                        <span class="flex items-center gap-1">
+                            <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400"></i> ${fechaStr} - ${horaStr}
+                        </span>
+                        ${d.observacion ? `<span class="italic text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 truncate max-w-md">Nota: ${d.observacion}</span>` : ''}
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        // --- ELIMINACIÓN DE REGISTROS ---
+        function eliminarDespacho(id) {
+            if (confirm("¿Estás seguro de que deseas eliminar este registro de despacho?")) {
+                despachos = despachos.filter(d => d.id !== id);
+                guardarEnLocalStorage();
+                renderHistorial();
+                actualizarReporte();
+                showToast("Registro eliminado correctamente", "info");
+            }
+        }
+
+        // --- CONSULTAS Y REPORTES CON MATERIALES MÚLTIPLES ---
+        function aplicarRangoRápido() {
+            const opcion = document.getElementById('filtro-rango-predef').value;
+            const containerCustom = document.getElementById('container-fechas-custom');
+            const now = new Date();
+
+            let inicio = new Date();
+            let fin = new Date();
+
+            if (opcion === 'custom') {
+                containerCustom.classList.remove('opacity-50', 'pointer-events-none');
+                return;
+            } else {
+                containerCustom.classList.add('opacity-50', 'pointer-events-none');
+            }
+
+            if (opcion === 'hoy') {
+                inicio.setHours(0,0,0,0);
+                fin.setHours(23,59,59,999);
+            } else if (opcion === 'semana') {
+                const dayOfWeek = now.getDay() || 7;
+                inicio.setDate(now.getDate() - dayOfWeek + 1);
+                inicio.setHours(0,0,0,0);
+                fin.setHours(23,59,59,999);
+            } else if (opcion === 'mes') {
+                inicio = new Date(now.getFullYear(), now.getMonth(), 1);
+                fin = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+            } else if (opcion === '2meses') {
+                inicio = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                fin = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+            } else if (opcion === 'ano') {
+                inicio = new Date(now.getFullYear(), 0, 1);
+                fin = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+            } else {
+                document.getElementById('filtro-fecha-inicio').value = '';
+                document.getElementById('filtro-fecha-fin').value = '';
+                actualizarReporte();
+                return;
+            }
+
+            document.getElementById('filtro-fecha-inicio').value = inicio.toISOString().slice(0, 10);
+            document.getElementById('filtro-fecha-fin').value = fin.toISOString().slice(0, 10);
+            actualizarReporte();
+        }
+
+        function obtenerDatosFiltrados() {
+            const trabajador = document.getElementById('filtro-trabajador').value;
+            const fechaIniStr = document.getElementById('filtro-fecha-inicio').value;
+            const fechaFinStr = document.getElementById('filtro-fecha-fin').value;
+
+            return despachos.filter(d => {
+                if (trabajador !== 'TODOS' && d.trabajador !== trabajador) return false;
+
+                if (fechaIniStr) {
+                    const dFecha = new Date(d.fechaHora.slice(0, 10));
+                    const fIni = new Date(fechaIniStr);
+                    if (dFecha < fIni) return false;
+                }
+                if (fechaFinStr) {
+                    const dFecha = new Date(d.fechaHora.slice(0, 10));
+                    const fFin = new Date(fechaFinStr);
+                    if (dFecha > fFin) return false;
+                }
+
+                return true;
+            });
+        }
+
+        function actualizarReporte() {
+            const filtrados = obtenerDatosFiltrados();
+            const trabajadorSel = document.getElementById('filtro-trabajador').value;
+
+            // Calcular Total Items Desglosando Lotes
+            let totalItemsCount = 0;
+            const desgloseMap = {};
+
+            filtrados.forEach(d => {
+                (d.items || []).forEach(item => {
+                    totalItemsCount += item.cantidad;
+                    desgloseMap[item.material] = (desgloseMap[item.material] || 0) + item.cantidad;
+                });
+            });
+
+            document.getElementById('kpi-total-items').innerText = totalItemsCount;
+            document.getElementById('kpi-total-despachos').innerText = filtrados.length;
+            document.getElementById('kpi-trabajador-nombre').innerText = trabajadorSel;
+
+            // Desglose por Material
+            const desgloseContainer = document.getElementById('desglose-materiales');
+            const entries = Object.entries(desgloseMap);
+
+            if (entries.length === 0) {
+                desgloseContainer.innerHTML = `<p class="text-xs text-slate-400 italic col-span-full">No hay datos para mostrar en este rango o trabajador.</p>`;
+            } else {
+                desgloseContainer.innerHTML = entries.map(([material, cant]) => `
+                    <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl flex justify-between items-center">
+                        <span class="text-xs font-semibold text-slate-700 truncate">${material}</span>
+                        <span class="bg-brand-100 text-brand-800 font-bold px-2 py-0.5 rounded-lg text-xs">${cant} unid.</span>
+                    </div>
+                `).join('');
+            }
+
+            // Tabla Cronológica Desglosada
+            const tablaBody = document.getElementById('tabla-reporte-body');
+            let filas = [];
+
+            filtrados.forEach(d => {
+                const dateObj = new Date(d.fechaHora);
+                const fStr = dateObj.toLocaleDateString('es-PE') + ' ' + dateObj.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+
+                (d.items || []).forEach(item => {
+                    filas.push({
+                        fechaHora: fStr,
+                        trabajador: d.trabajador,
+                        material: item.material,
+                        cantidad: item.cantidad,
+                        observacion: d.observacion
+                    });
+                });
+            });
+
+            if (filas.length === 0) {
+                tablaBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400 italic">Sin resultados</td></tr>`;
+            } else {
+                tablaBody.innerHTML = filas.map(f => `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-3 font-medium text-slate-800 whitespace-nowrap">${f.fechaHora}</td>
+                        <td class="p-3 font-semibold text-slate-700 whitespace-nowrap">${f.trabajador}</td>
+                        <td class="p-3 text-slate-800 font-medium">${f.material}</td>
+                        <td class="p-3 text-center font-bold text-brand-700">${f.cantidad}</td>
+                        <td class="p-3 text-slate-500 italic max-w-xs truncate">${f.observacion || '-'}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // --- EXPORTAR A EXCEL (.XLSX) ---
+        function exportarExcel() {
+            const filtrados = obtenerDatosFiltrados();
+
+            if (filtrados.length === 0) {
+                showToast("No hay registros para exportar con los filtros aplicados", "error");
+                return;
+            }
+
+            const dataParaExcel = [];
+            let contador = 1;
+
+            filtrados.forEach(d => {
+                const dateObj = new Date(d.fechaHora);
+                (d.items || []).forEach(item => {
+                    dataParaExcel.push({
+                        'N°': contador++,
+                        'Fecha': dateObj.toLocaleDateString('es-PE'),
+                        'Hora': dateObj.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+                        'Trabajador': d.trabajador,
+                        'Material / Insumo': item.material,
+                        'Cantidad': item.cantidad,
+                        'Observaciones / Notas': d.observacion || ''
+                    });
+                });
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(dataParaExcel);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte Despachos");
+
+            worksheet['!cols'] = [
+                { wch: 5 },  // N°
+                { wch: 12 }, // Fecha
+                { wch: 10 }, // Hora
+                { wch: 18 }, // Trabajador
+                { wch: 25 }, // Material
+                { wch: 10 }, // Cantidad
+                { wch: 30 }  // Observaciones
+            ];
+
+            const trabajadorFiltro = document.getElementById('filtro-trabajador').value;
+            const nombreArchivo = `Reporte_Almacen_${trabajadorFiltro}_${new Date().toISOString().slice(0,10)}.xlsx`;
+
+            XLSX.writeFile(workbook, nombreArchivo);
+            showToast("Reporte Excel generado exitosamente", "success");
+        }
+
+        // --- NAVEGACIÓN Y CONFIGURACIÓN ---
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(sec => sec.classList.add('hidden'));
+            document.getElementById(`sec-${tabName}`).classList.remove('hidden');
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-brand-600', 'text-white', 'shadow-sm');
+                btn.classList.add('text-slate-600', 'hover:bg-slate-100');
+            });
+
+            const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-600', 'hover:bg-slate-100');
+                activeBtn.classList.add('bg-brand-600', 'text-white', 'shadow-sm');
+            }
+
+            const mobileTabs = ['registrar', 'historial', 'reportes'];
+            mobileTabs.forEach(t => {
+                const mobBtn = document.getElementById(`mobile-tab-${t}`);
+                if (t === tabName) {
+                    mobBtn.className = "flex flex-col items-center gap-1 text-emerald-400 font-medium text-xs py-1";
+                } else {
+                    mobBtn.className = "flex flex-col items-center gap-1 hover:text-white text-slate-400 font-medium text-xs py-1";
+                }
+            });
+
+            if (tabName === 'historial') renderHistorial();
+            if (tabName === 'reportes') actualizarReporte();
+        }
+
+        function openConfigModal() {
+            renderModalConfigLists();
+            document.getElementById('modal-config').classList.remove('hidden');
+        }
+
+        function closeConfigModal() {
+            document.getElementById('modal-config').classList.add('hidden');
+        }
+
+        function agregarTrabajador() {
+            const input = document.getElementById('nuevo-trabajador-nombre');
+            const nombre = input.value.trim().toUpperCase();
+
+            if (!nombre) return;
+            if (trabajadores.includes(nombre)) {
+                showToast("El trabajador ya existe", "error");
+                return;
+            }
+
+            trabajadores.push(nombre);
+            guardarEnLocalStorage();
+            renderSelects();
+            input.value = '';
+            showToast(`Trabajador ${nombre} añadido`, "success");
+        }
+
+        function agregarMaterial() {
+            const input = document.getElementById('nuevo-material-nombre');
+            const nombre = input.value.trim();
+
+            if (!nombre) return;
+            if (materiales.some(m => m.toLowerCase() === nombre.toLowerCase())) {
+                showToast("El material ya existe", "error");
+                return;
+            }
+
+            materiales.push(nombre);
+            guardarEnLocalStorage();
+            renderSelects();
+            input.value = '';
+            showToast(`Material ${nombre} añadido`, "success");
+        }
+
+        // --- DATOS DEMO CON LOTE MULTI-MATERIAL ---
+        function loadDemoData() {
+            if (despachos.length > 0 && !confirm("Esto agregará datos de prueba al historial actual. ¿Deseas continuar?")) {
+                return;
+            }
+
+            const demoDespachos = [
+                { 
+                    id: 'demo_1', 
+                    trabajador: 'ISAIAS', 
+                    fechaHora: new Date(Date.now() - 86400000 * 1).toISOString().slice(0,16), 
+                    observacion: 'Entrega para ruta norte',
+                    items: [
+                        { material: 'Mamelucos', cantidad: 2 },
+                        { material: 'Guantes', cantidad: 4 },
+                        { material: 'Refrigerante', cantidad: 1 }
+                    ]
+                },
+                { 
+                    id: 'demo_2', 
+                    trabajador: 'ISAIAS', 
+                    fechaHora: new Date(Date.now() - 86400000 * 10).toISOString().slice(0,16), 
+                    observacion: 'Cambio de repuestos',
+                    items: [
+                        { material: 'Llantas', cantidad: 2 },
+                        { material: 'Pernos de llantas', cantidad: 10 }
+                    ]
+                },
+                { 
+                    id: 'demo_3', 
+                    trabajador: 'HERMAN', 
+                    fechaHora: new Date(Date.now() - 86400000 * 3).toISOString().slice(0,16), 
+                    observacion: 'Mantenimiento preventivo',
+                    items: [
+                        { material: 'Adblue Green', cantidad: 4 },
+                        { material: 'Limpia parabrisas', cantidad: 2 }
+                    ]
+                }
+            ];
+
+            despachos = [...demoDespachos, ...despachos];
+            guardarEnLocalStorage();
+            renderHistorial();
+            actualizarReporte();
+            showToast("Datos de prueba cargados correctamente", "success");
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastContent = document.getElementById('toast-content');
+            const toastMsg = document.getElementById('toast-message');
+
+            toastMsg.innerText = message;
+
+            if (type === 'error') {
+                toastContent.className = "bg-red-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center space-x-3";
+            } else if (type === 'info') {
+                toastContent.className = "bg-slate-800 text-white px-4 py-3 rounded-xl shadow-lg flex items-center space-x-3";
+            } else {
+                toastContent.className = "bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center space-x-3";
+            }
+
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
